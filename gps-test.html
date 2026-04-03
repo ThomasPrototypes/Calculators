@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPS Test</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #0d1117; color: #e6edf3; }
+  button { padding: 14px 24px; font-size: 18px; background: #00d4aa; color: #000; border: none; border-radius: 8px; cursor: pointer; width: 100%; margin-bottom: 16px; }
+  pre { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<button id="gpsBtn">Get GPS</button>
+<pre id="out">Tap the button…</pre>
+<script>
+const out = document.getElementById('out');
+document.getElementById('gpsBtn').addEventListener('click', () => {
+  out.textContent = [
+    'isSecureContext=' + window.isSecureContext,
+    'protocol=' + location.protocol,
+    'host=' + location.host,
+    'geolocation=' + !!navigator.geolocation
+  ].join('\n');
+
+  if (!navigator.geolocation) {
+    out.textContent += '\nNo geolocation API available.';
+    return;
+  }
+
+  const started = Date.now();
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      out.textContent += '\n\nSUCCESS';
+      out.textContent += '\nlat=' + pos.coords.latitude;
+      out.textContent += '\nlon=' + pos.coords.longitude;
+      out.textContent += '\naccuracy=' + pos.coords.accuracy + 'm';
+      out.textContent += '\ntime=' + (Date.now() - started) + 'ms';
+    },
+    (err) => {
+      out.textContent += '\n\nERROR';
+      out.textContent += '\ncode=' + err.code;
+      out.textContent += '\nmessage=' + err.message;
+      out.textContent += '\ntime=' + (Date.now() - started) + 'ms';
+    },
+    {
+      enableHighAccuracy: false,
+      timeout: 20000,
+      maximumAge: 60000
+    }
+  );
+});
+</script>
+</body>
+</html>
