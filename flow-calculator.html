@@ -502,25 +502,31 @@ function fetchWeather(){
       const {latitude:lat, longitude:lon} = pos.coords;
       try {
         // Fetch weather and reverse geocode in parallel
+        // bigdatacloud reverse geocoding — CORS-friendly, no key needed
         const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)+'&current=temperature_2m,surface_pressure&timezone=auto';
-        const geoUrl     = 'https://nominatim.openstreetmap.org/reverse?lat='+lat.toFixed(5)+'&lon='+lon.toFixed(5)+'&format=json';
+        const geoUrl     = 'https://api.bigdatacloud.net/data/reverse-geocode-client?latitude='+lat.toFixed(5)+'&longitude='+lon.toFixed(5)+'&localityLanguage=en';
 
-        const [weatherRes, geoRes] = await Promise.all([fetch(weatherUrl), fetch(geoUrl)]);
+        const [weatherRes, geoRes] = await Promise.all([
+          fetch(weatherUrl),
+          fetch(geoUrl).catch(()=>null)
+        ]);
         const weatherData = await weatherRes.json();
-        const geoData     = await geoRes.json();
 
         const t    = weatherData.current.temperature_2m;
         const p    = weatherData.current.surface_pressure;
         const pkpa = (p / 10).toFixed(3);
 
-        // Build a readable location string from Nominatim
-        const addr = geoData.address || {};
-        const locParts = [
-          addr.road || addr.pedestrian || addr.suburb,
-          addr.city || addr.town || addr.village || addr.county,
-          addr.country
-        ].filter(Boolean);
-        const locStr = locParts.join(', ') || (lat.toFixed(4)+', '+lon.toFixed(4));
+        // Build location string from bigdatacloud
+        let locStr = lat.toFixed(4)+', '+lon.toFixed(4);
+        if(geoRes && geoRes.ok){
+          const geoData = await geoRes.json();
+          const parts = [
+            geoData.locality || geoData.city,
+            geoData.principalSubdivision,
+            geoData.countryName
+          ].filter(Boolean);
+          if(parts.length) locStr = parts.join(', ');
+        }
 
         pendingWeather = { t, p: parseFloat(pkpa), location: locStr };
 
