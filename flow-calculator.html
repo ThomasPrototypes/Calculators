@@ -196,6 +196,35 @@
   }
   .saved-badge.show{opacity:1;}
 
+  /* ══ LOCATIONS VIEW ══ */
+  #view-locs{padding:10px 14px 16px;gap:8px;}
+  .loc-notes-wrap textarea{
+    width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);font-family:'Barlow',sans-serif;font-size:12px;font-weight:300;
+    padding:10px 12px;outline:none;resize:none;line-height:1.5;min-height:72px;
+    transition:border-color .15s;
+  }
+  .loc-notes-wrap textarea:focus{border-color:var(--accent3);}
+  .photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .photo-item{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;position:relative;}
+  .photo-item img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;}
+  .photo-item-footer{padding:6px 8px;display:flex;align-items:center;gap:6px;}
+  .photo-item-footer input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--muted);
+    font-family:'Barlow',sans-serif;font-size:11px;min-width:0;
+  }
+  .photo-item-footer input::placeholder{color:var(--border);}
+  .photo-item-del{background:none;border:none;color:var(--accent2);font-size:16px;cursor:pointer;padding:0 2px;flex-shrink:0;}
+  .photo-add-tile{
+    background:var(--panel);border:1px dashed var(--border);border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    aspect-ratio:4/3;cursor:pointer;color:var(--muted);
+    font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:1px;
+    flex-direction:column;gap:6px;transition:border-color .15s,color .15s;
+  }
+  .photo-add-tile:active{border-color:var(--accent3);color:var(--accent3);}
+  .photo-add-icon{font-size:24px;}
+
 </style>
 </head>
 <body>
@@ -203,6 +232,7 @@
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('calc')">Calc</button>
   <button class="tab-btn" onclick="switchTab('chart')">Chart</button>
+  <button class="tab-btn" onclick="switchTab('locs')">Locations</button>
   <button class="tab-btn" onclick="switchTab('summary')">Summary</button>
   <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
 </div>
@@ -326,7 +356,7 @@
     <div class="settings-fields">
       <div class="field">
         <div class="field-label"><div class="name">Seal Diameter</div><div class="sym">D_seal</div></div>
-        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-seal-dia" value="150"><span class="unit">mm</span></div>
+        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-seal-dia" value="300"><span class="unit">mm</span></div>
       </div>
     </div>
   </div>
@@ -366,6 +396,18 @@
 
   <div class="saved-badge" id="saved-badge">✓ Settings saved</div>
   <button class="reset-btn" onclick="resetSettings()">Reset to Defaults</button>
+</div>
+
+<!-- ══ LOCATIONS VIEW ══ -->
+<div id="view-locs" class="view">
+  <div style="border-left:3px solid var(--accent3);padding-left:10px;flex-shrink:0;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Field Data</div>
+    <div style="font-size:17px;font-weight:700;">Locations</div>
+  </div>
+  <!-- Location selector -->
+  <div class="locations-bar" id="locs-pill-bar"></div>
+  <!-- Location detail -->
+  <div id="locs-detail" style="display:flex;flex-direction:column;gap:8px;"></div>
 </div>
 
 <!-- ══ SUMMARY VIEW ══ -->
@@ -420,7 +462,7 @@
    DEFAULTS & PERSISTENCE
 ═══════════════════════════════════ */
 const DEFAULTS = {
-  sealDia: 150,   // mm
+  sealDia: 300,   // mm
   pipeDia: 37,    // mm
   orificeDia: 28, // mm
   R: 287.05,
@@ -442,13 +484,27 @@ function loadSettings(){
 }
 
 function saveSettings(){
+  const prevCFG = {...CFG};
   CFG.sealDia    = parseFloat(document.getElementById('s-seal-dia').value)    || DEFAULTS.sealDia;
   CFG.pipeDia    = parseFloat(document.getElementById('s-pipe-dia').value)    || DEFAULTS.pipeDia;
   CFG.orificeDia = parseFloat(document.getElementById('s-orifice-dia').value) || DEFAULTS.orificeDia;
   CFG.R          = parseFloat(document.getElementById('s-R').value)           || DEFAULTS.R;
   CFG.kappa      = parseFloat(document.getElementById('s-kappa').value)       || DEFAULTS.kappa;
   try { localStorage.setItem('sealCalcSettings', JSON.stringify(CFG)); } catch(e){}
-  // flash saved badge
+
+  // Recompute all stored m values if seal diameter changed
+  const newCirc = Math.PI * (CFG.sealDia/1000);
+  if(CFG.sealDia !== prevCFG.sealDia){
+    locations.forEach(loc=>{
+      loc.data.forEach(pt=>{
+        if(pt.mdot!=null){
+          pt.m = pt.mdot / newCirc;
+        }
+      });
+    });
+    saveLocations();
+  }
+
   const b = document.getElementById('saved-badge');
   b.classList.add('show');
   setTimeout(()=>b.classList.remove('show'), 1800);
@@ -489,7 +545,7 @@ function airViscosity(T){
 
 function sealCircumference(){ return Math.PI * (CFG.sealDia/1000); } // m
 
-let lastMdotPerM=null, lastP1abs=null;
+let lastMdotPerM=null, lastP1abs=null, lastMdotAbs=null;
 
 function calculate(){
   const p1raw = parseFloat(document.getElementById('p1').value);
@@ -527,7 +583,7 @@ function calculate(){
   document.getElementById('ps-patm').textContent    = fmt(patm,3);
   document.getElementById('ps-temp').textContent    = fmt(T_C,1);
   document.getElementById('ps-seal').textContent    = CFG.sealDia;
-  lastMdotPerM=mdotPerM; lastP1abs=p1abs;
+  lastMdotPerM=mdotPerM; lastP1abs=p1abs; lastMdotAbs=mdot;
 }
 
 /* ═══════════════════════════════════
@@ -822,7 +878,7 @@ function renderLocations(){
 function logReading(){
   if(lastMdotPerM===null||lastP1abs===null){alert('Calculate a valid reading first.');return;}
   const patm=parseFloat(document.getElementById('patm').value)||101.325;
-  locations[activeIdx].data.push({p:lastP1abs, m:lastMdotPerM, patm});
+  locations[activeIdx].data.push({p:lastP1abs, m:lastMdotPerM, mdot:lastMdotAbs||null, patm});
   locations[activeIdx].data.sort((a,b)=>a.p-b.p);
   saveLocations(); switchTab('chart');
   renderLocations(); renderChart(); renderTable();
@@ -1183,47 +1239,221 @@ function renderSummaryChart(scored){
 }
 
 /* ═══════════════════════════════════
-   EXPORT CSV → OUTLOOK
+   LOCATIONS VIEW — notes + photos
+═══════════════════════════════════ */
+let activeLocIdx = 0;
+
+function renderLocsTab(){
+  // Pill bar
+  const bar = document.getElementById('locs-pill-bar');
+  bar.innerHTML = '';
+  locations.forEach((loc,i)=>{
+    const col = COLORS[i%COLORS.length];
+    const pill = document.createElement('button');
+    pill.className = 'loc-pill' + (i===activeLocIdx?' active':'');
+    pill.textContent = loc.name;
+    if(i===activeLocIdx){ pill.style.borderColor=col; pill.style.color=col; }
+    pill.onclick = ()=>{ activeLocIdx=i; renderLocsTab(); };
+    bar.appendChild(pill);
+  });
+
+  // Detail panel
+  const loc = locations[activeLocIdx];
+  const col = COLORS[activeLocIdx%COLORS.length];
+  const detail = document.getElementById('locs-detail');
+  detail.innerHTML = '';
+
+  // ── Notes ──
+  const notesSection = document.createElement('div');
+  notesSection.className = 'loc-notes-wrap';
+  notesSection.innerHTML =
+    '<div style="font-family:\'Share Tech Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:5px;">Notes</div>';
+  const ta = document.createElement('textarea');
+  ta.placeholder = 'Surface condition, weather, anomalies…';
+  ta.value = loc.notes || '';
+  ta.oninput = ()=>{ loc.notes=ta.value; saveLocations(); };
+  notesSection.appendChild(ta);
+  detail.appendChild(notesSection);
+
+  // ── Photos header ──
+  const photosHeader = document.createElement('div');
+  photosHeader.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-shrink:0;';
+  photosHeader.innerHTML =
+    '<div style="font-family:\'Share Tech Mono\',monospace;font-size:8px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Photos ('+(loc.photos?loc.photos.length:0)+')</div>';
+  detail.appendChild(photosHeader);
+
+  // ── Photo grid ──
+  const grid = document.createElement('div');
+  grid.className = 'photo-grid';
+
+  (loc.photos||[]).forEach((photo,pi)=>{
+    const item = document.createElement('div');
+    item.className = 'photo-item';
+    const img = document.createElement('img');
+    img.src = photo.data;
+    img.alt = photo.caption||'';
+    item.appendChild(img);
+    const footer = document.createElement('div');
+    footer.className = 'photo-item-footer';
+    const cap = document.createElement('input');
+    cap.type = 'text';
+    cap.placeholder = 'Add caption…';
+    cap.value = photo.caption||'';
+    cap.oninput = ()=>{ photo.caption=cap.value; saveLocations(); };
+    const del = document.createElement('button');
+    del.className = 'photo-item-del';
+    del.textContent = '×';
+    del.onclick = ()=>{
+      loc.photos.splice(pi,1);
+      saveLocations(); renderLocsTab();
+    };
+    footer.appendChild(cap);
+    footer.appendChild(del);
+    item.appendChild(footer);
+    grid.appendChild(item);
+  });
+
+  // ── Add photo tile ──
+  const addTile = document.createElement('div');
+  addTile.className = 'photo-add-tile';
+  addTile.innerHTML = '<div class="photo-add-icon">📷</div><div>Add Photo</div>';
+  addTile.onclick = ()=>addPhoto(activeLocIdx);
+  grid.appendChild(addTile);
+  detail.appendChild(grid);
+}
+
+function addPhoto(locIdx){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment';
+  input.multiple = true;
+  input.onchange = function(){
+    if(!input.files||!input.files.length) return;
+    const files = Array.from(input.files);
+    let done = 0;
+    files.forEach(file=>{
+      compressImage(file, 1200, 1200, 0.75, function(dataUrl){
+        if(!locations[locIdx].photos) locations[locIdx].photos=[];
+        locations[locIdx].photos.push({data:dataUrl, caption:''});
+        done++;
+        if(done===files.length){ saveLocations(); renderLocsTab(); }
+      });
+    });
+  };
+  input.click();
+}
+
+function compressImage(file, maxW, maxH, quality, cb){
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = function(){
+    const scale = Math.min(maxW/img.width, maxH/img.height, 1);
+    const w = Math.round(img.width*scale), h = Math.round(img.height*scale);
+    const canvas = document.createElement('canvas');
+    canvas.width=w; canvas.height=h;
+    canvas.getContext('2d').drawImage(img,0,0,w,h);
+    cb(canvas.toDataURL('image/jpeg',quality));
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+
+/* ═══════════════════════════════════
+   EXPORT → OUTLOOK (body text)
 ═══════════════════════════════════ */
 function exportCSV(){
-  const lines=['Location,P1_abs_kPa,mdot_kg_s_m'];
+  // Build HTML report as a data URL and open mailto
+  let html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<style>body{font-family:Arial,sans-serif;font-size:13px;color:#222;max-width:800px;margin:0 auto;padding:20px;}'+
+    'h1{font-size:20px;margin-bottom:4px;}h2{font-size:15px;margin:20px 0 6px;border-bottom:2px solid #00d4aa;padding-bottom:4px;color:#00d4aa;}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px;}th,td{padding:6px 10px;border:1px solid #ddd;text-align:right;font-size:12px;}'+
+    'th{background:#f5f5f5;text-align:center;}td:first-child{text-align:left;}'+
+    '.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}'+
+    '.photo-item img{width:100%;border-radius:4px;}.caption{font-size:11px;color:#666;margin-top:3px;}'+
+    '.notes{background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:10px;font-size:12px;color:#444;margin-bottom:10px;}'+
+    '.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;}'+
+    '.best{background:#d4edda;color:#155724;}.worst{background:#f8d7da;color:#721c24;}'+
+    '</style></head><body>';
+
+  html += '<h1>Seal Flow Calculator — Results Export</h1>';
+  html += '<p style="color:#666;font-size:12px;">Generated: '+new Date().toLocaleString()+'</p>';
+
+  // Summary table
+  const fitted = locations.filter(l=>powerLawFit(l.data));
+  const scored = fitted.map(loc=>{
+    const fit=powerLawFit(loc.data);
+    return {loc,fit,val:fit.a*Math.pow(30,fit.b)};
+  }).filter(s=>isFinite(s.val)).sort((a,b)=>a.val-b.val);
+
+  html += '<h2>Flow Rate Summary (kg/s/m)</h2>';
+  html += '<table><thead><tr><th>Location</th><th>ṁ @ −10 kPa</th><th>ṁ @ −20 kPa</th><th>ṁ @ −30 kPa</th><th>Fit: a</th><th>Fit: b</th><th>Rank</th></tr></thead><tbody>';
+  scored.forEach((s,si)=>{
+    const isBest=si===0, isWorst=si===scored.length-1&&scored.length>1;
+    const badge = isBest?'<span class="badge best">BEST</span>':isWorst?'<span class="badge worst">WORST</span>':'';
+    html += '<tr>'+
+      '<td>'+s.loc.name+'</td>'+
+      '<td>'+(s.fit.a*Math.pow(10,s.fit.b)).toFixed(6)+'</td>'+
+      '<td>'+(s.fit.a*Math.pow(20,s.fit.b)).toFixed(6)+'</td>'+
+      '<td>'+(s.fit.a*Math.pow(30,s.fit.b)).toFixed(6)+'</td>'+
+      '<td>'+s.fit.a.toExponential(4)+'</td>'+
+      '<td>'+s.fit.b.toFixed(4)+'</td>'+
+      '<td style="text-align:center;">'+badge+'</td>'+
+    '</tr>';
+  });
+  html += '</tbody></table>';
+
+  // Raw readings
+  html += '<h2>Raw Readings</h2>';
+  html += '<table><thead><tr><th>Location</th><th>#</th><th>P₁ abs (kPa)</th><th>ṁ (kg/s/m)</th></tr></thead><tbody>';
   locations.forEach(loc=>{
-    loc.data.forEach(pt=>{
-      lines.push([loc.name, pt.p.toFixed(3), pt.m.toFixed(6)].join(','));
+    loc.data.forEach((pt,i)=>{
+      html += '<tr><td>'+loc.name+'</td><td>'+(i+1)+'</td><td>'+pt.p.toFixed(3)+'</td><td>'+pt.m.toFixed(6)+'</td></tr>';
     });
   });
+  html += '</tbody></table>';
 
-  // Add fit summary
-  lines.push('');
-  lines.push('Location,a,b,Flow_at_10kPa,Flow_at_20kPa,Flow_at_30kPa');
+  // Location notes and photos
+  html += '<h2>Location Notes & Photos</h2>';
   locations.forEach(loc=>{
-    const fit=powerLawFit(loc.data);
-    if(!fit)return;
-    lines.push([
-      loc.name,
-      fit.a.toExponential(4),
-      fit.b.toFixed(4),
-      (fit.a*Math.pow(10,fit.b)).toFixed(6),
-      (fit.a*Math.pow(20,fit.b)).toFixed(6),
-      (fit.a*Math.pow(30,fit.b)).toFixed(6)
-    ].join(','));
+    html += '<h3 style="font-size:13px;margin:14px 0 6px;">'+loc.name+'</h3>';
+    if(loc.notes){
+      html += '<div class="notes">'+loc.notes.replace(/\n/g,'<br>')+'</div>';
+    }
+    if(loc.photos&&loc.photos.length){
+      html += '<div class="photo-grid">';
+      loc.photos.forEach(p=>{
+        html += '<div class="photo-item"><img src="'+p.data+'">';
+        if(p.caption) html += '<div class="caption">'+p.caption+'</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
   });
 
-  const body = encodeURIComponent(lines.join('\n'));
-  const subject = encodeURIComponent('Seal Flow Results - ' + new Date().toLocaleDateString());
-  window.location.href = 'mailto:?subject='+subject+'&body='+body;
+  html += '</body></html>';
+
+  // Open as downloadable HTML file
+  const blob = new Blob([html], {type:'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = 'seal-flow-report-'+new Date().toISOString().slice(0,10)+'.html';
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ═══════════════════════════════════
    TABS
 ═══════════════════════════════════ */
 function switchTab(tab){
-  const tabs=['calc','chart','summary','settings'];
+  const tabs=['calc','chart','locs','summary','settings'];
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',tabs[i]===tab));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+tab).classList.add('active');
   if(tab==='chart'){renderLocations();renderChart();renderTable();}
   if(tab==='summary'){renderSummary();}
+  if(tab==='locs'){activeLocIdx=activeIdx;renderLocsTab();}
 }
 
 /* ═══════════════════════════════════
