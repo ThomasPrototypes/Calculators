@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Seal Flow Calculator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap');
+  :root {
+    --bg:#0d1117; --panel:#161b22; --border:#30363d;
+    --accent:#00d4aa; --accent2:#ff6b35; --accent3:#4fc3f7;
+    --text:#e6edf3; --muted:#7d8590; --glow:rgba(0,212,170,0.15);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;font-weight:300;
+    display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;
+    min-height:100%;
+    background-image:radial-gradient(ellipse 120% 30% at 50% 0%,rgba(0,212,170,0.07) 0%,transparent 55%);
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar{
+    display:-webkit-flex;display:flex;border-bottom:1px solid var(--border);flex-shrink:0;
+    padding:10px 16px 0;gap:4px;position:sticky;top:0;z-index:10;background:var(--bg);
+  }
+  .tab-btn{
+    flex:1;padding:10px 0;background:none;border:none;
+    border-bottom:2px solid transparent;color:var(--muted);
+    font-family:'Share Tech Mono',monospace;font-size:16.5px;letter-spacing:1.5px;
+    text-transform:uppercase;cursor:pointer;transition:color .15s,border-color .15s;margin-bottom:-1px;
+  }
+  .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+  /* ── Views ── */
+  .view{display:none;-webkit-flex-direction:column;flex-direction:column;}
+  .view.active{display:-webkit-flex;display:flex;}
+
+  #view-calc{padding:12px 16px 24px;gap:10px;}
+  #view-chart{padding:12px 16px 24px;gap:10px;}
+  #view-settings{padding:12px 16px 24px;gap:0;}
+
+  /* ══ SHARED FIELD STYLES ══ */
+  .field{
+    background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:9px 14px;display:flex;align-items:center;gap:12px;
+  }
+  .field-label{flex:1;min-width:0;}
+  .field-label .name{font-size:16.5px;color:var(--muted);margin-bottom:1px;}
+  .field-label .sym{font-family:'Share Tech Mono',monospace;font-size:19.5px;color:var(--accent);}
+  .field-label .sym.o{color:var(--accent2);}
+  .input-wrap{
+    display:flex;align-items:center;background:var(--bg);
+    border:1px solid var(--border);border-radius:6px;
+    transition:border-color .15s,box-shadow .15s;flex-shrink:0;
+  }
+  .input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--glow);}
+  .input-wrap input{
+    width:88px;background:transparent;border:none;outline:none;
+    color:var(--text);font-family:'Share Tech Mono',monospace;
+    font-size:24px;padding:6px 10px;text-align:right;
+  }
+  .input-wrap .unit{
+    font-family:'Share Tech Mono',monospace;font-size:15px;
+    color:var(--muted);padding:0 10px 0 2px;white-space:nowrap;
+  }
+
+  /* ══ CALCULATOR VIEW ══ */
+  header{flex-shrink:0;border-left:3px solid var(--accent);padding-left:12px;}
+  header .sub{font-family:'Share Tech Mono',monospace;font-size:13.5px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  header h1{font-size:30px;font-weight:700;letter-spacing:-0.4px;}
+  .inputs{display:flex;flex-direction:column;gap:7px;flex-shrink:0;}
+  .results{
+    background:var(--panel);border:1px solid var(--accent);border-radius:10px;
+    box-shadow:0 0 28px rgba(0,212,170,0.06);
+    display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;
+    justify-content:center;padding:20px 16px;gap:14px;
+  }
+  .result-main{text-align:center;}
+  .divider{height:1px;background:var(--border);flex-shrink:0;}
+  .result-main .r-label{font-size:15px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;}
+  .result-main .r-value{font-family:'Share Tech Mono',monospace;font-size:66px;color:var(--accent);line-height:1;letter-spacing:-2px;}
+  .result-main .r-unit{font-family:'Share Tech Mono',monospace;font-size:19.5px;color:rgba(0,212,170,0.55);margin-top:4px;}
+  .result-abs{text-align:center;}
+  .ra-label{font-size:13.5px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:2px;}
+  .ra-value{font-family:'Share Tech Mono',monospace;font-size:36px;color:var(--text);line-height:1;}
+  .ra-unit{font-family:'Share Tech Mono',monospace;font-size:16.5px;color:var(--muted);margin-top:2px;}
+
+  .params-summary{display:flex;flex-direction:column;gap:4px;}
+  .ps-item{
+    display:flex;align-items:baseline;justify-content:space-between;
+    padding:3px 0;border-bottom:1px solid rgba(48,54,61,0.4);
+  }
+  .ps-item:last-child{border-bottom:none;}
+  .ps-label{font-family:'Share Tech Mono',monospace;font-size:15px;color:var(--muted);min-width:52px;}
+  .ps-value{font-family:'Share Tech Mono',monospace;font-size:19.5px;color:var(--text);flex:1;text-align:right;margin-right:6px;}
+  .ps-unit{font-family:'Share Tech Mono',monospace;font-size:13.5px;color:var(--muted);min-width:44px;text-align:right;}
+  .result-row{display:grid;grid-template-columns:1fr 1fr 1fr;}
+  .result-cell{text-align:center;padding:0 4px;}
+  .result-cell+.result-cell{border-left:1px solid var(--border);}
+  .rc-label{font-size:13.5px;color:var(--muted);letter-spacing:0.5px;margin-bottom:3px;}
+  .rc-value{font-family:'Share Tech Mono',monospace;font-size:21px;color:var(--text);}
+  .rc-unit{font-family:'Share Tech Mono',monospace;font-size:13.5px;color:var(--muted);margin-top:1px;}
+  .log-btn{
+    flex-shrink:0;width:100%;padding:12px;background:transparent;
+    border:1px solid var(--accent);border-radius:8px;color:var(--accent);
+    font-family:'Share Tech Mono',monospace;font-size:18px;letter-spacing:2px;
+    text-transform:uppercase;cursor:pointer;transition:background .15s,box-shadow .15s;
+  }
+  .log-btn:active{background:rgba(0,212,170,0.1);box-shadow:0 0 12px var(--glow);}
+  .log-btn.on{background:rgba(247,201,72,0.12);border-color:#f7c948;color:#f7c948;}
+  .gps-btn{
+    flex-shrink:0;width:100%;padding:10px;background:transparent;
+    border:1px solid var(--accent3);border-radius:8px;color:var(--accent3);
+    font-family:'Share Tech Mono',monospace;font-size:13px;letter-spacing:1.5px;
+    text-transform:uppercase;cursor:pointer;transition:background .15s;
+  }
+  .gps-btn:active{background:rgba(79,195,247,0.1);}
+  .gps-btn.loading{opacity:0.6;pointer-events:none;}
+  .warning-box{
+    flex-shrink:0;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.35);
+    border-radius:6px;padding:7px 12px;font-family:'Share Tech Mono',monospace;
+    font-size:15px;color:var(--accent2);display:none;
+  }
+  .warning-box.visible{display:block;}
+
+  /* ══ CHART VIEW ══ */
+  .chart-header{flex-shrink:0;display:-webkit-flex;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .chart-header h2{font-size:24px;font-weight:700;border-left:3px solid var(--accent);padding-left:10px;}
+  .locations-bar{
+    flex-shrink:0;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  }
+  .locations-bar::-webkit-scrollbar{display:none;}
+  .loc-pill{
+    flex-shrink:0;padding:5px 12px;border-radius:20px;
+    font-family:'Share Tech Mono',monospace;font-size:16.5px;cursor:pointer;
+    border:1px solid var(--border);background:var(--panel);color:var(--muted);
+    transition:all .15s;white-space:nowrap;
+  }
+  .loc-pill.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,170,0.08);}
+  .chart-wrap{height:360px;background:var(--panel);border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden;}
+  canvas{display:block;width:100%;height:100%;}
+  .data-table{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .data-table table{width:100%;border-collapse:collapse;}
+  .data-table th{
+    font-family:'Share Tech Mono',monospace;font-size:13.5px;color:var(--muted);
+    letter-spacing:1px;text-transform:uppercase;padding:6px 10px;
+    background:rgba(0,0,0,0.2);border-bottom:1px solid var(--border);text-align:right;
+  }
+  .data-table th:first-child{text-align:left;}
+  .data-table td{
+    font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--text);
+    padding:4px 10px;border-bottom:1px solid rgba(48,54,61,0.5);text-align:right;
+  }
+  .data-table td:first-child{text-align:left;color:var(--muted);font-size:15px;}
+  .data-table tr:last-child td{border-bottom:none;}
+  .del-btn{background:none;border:none;color:var(--accent2);font-size:21px;cursor:pointer;padding:0 4px;line-height:1;}
+  .fit-summary{
+    flex-shrink:0;background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;
+  }
+  .fit-summary .fs-label{font-size:15px;color:var(--muted);}
+  .fit-summary .fs-eq{font-family:'Share Tech Mono',monospace;font-size:16.5px;color:var(--accent3);}
+  .fit-summary .fs-extrap{font-family:'Share Tech Mono',monospace;font-size:16.5px;color:var(--accent);text-align:right;}
+
+  /* ══ SETTINGS VIEW ══ */
+  .settings-header{flex-shrink:0;border-left:3px solid var(--accent3);padding-left:12px;margin-bottom:16px;}
+  .settings-header .sub{font-family:'Share Tech Mono',monospace;font-size:13.5px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  .settings-header h2{font-size:30px;font-weight:700;letter-spacing:-0.4px;}
+  .settings-section{margin-bottom:16px;}
+  .settings-section-title{
+    font-family:'Share Tech Mono',monospace;font-size:13.5px;letter-spacing:2px;
+    color:var(--muted);text-transform:uppercase;margin-bottom:8px;padding-left:2px;
+  }
+  .settings-fields{display:flex;flex-direction:column;gap:7px;}
+  .settings-note{
+    font-size:16.5px;color:var(--muted);line-height:1.6;
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:8px;padding:10px 14px;margin-top:4px;
+  }
+  .settings-note strong{color:var(--accent3);}
+  .reset-btn{
+    width:100%;margin-top:8px;padding:11px;background:transparent;
+    border:1px solid var(--border);border-radius:8px;color:var(--muted);
+    font-family:'Share Tech Mono',monospace;font-size:16.5px;letter-spacing:2px;
+    text-transform:uppercase;cursor:pointer;transition:border-color .15s,color .15s;
+  }
+  .reset-btn:active{border-color:var(--accent2);color:var(--accent2);}
+  .saved-badge{
+    text-align:center;font-family:'Share Tech Mono',monospace;font-size:15px;
+    color:var(--accent);opacity:0;transition:opacity .3s;padding:4px 0;
+  }
+  .saved-badge.show{opacity:1;}
+
+    background:transparent;border:none;color:var(--accent2);
+    font-size:18px;cursor:pointer;padding:0 4px;line-height:1;
+  }
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('calc')">Calc</button>
+  <button class="tab-btn" onclick="switchTab('chart')">Chart</button>
+  <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+</div>
+
+<!-- ══ CALCULATOR VIEW ══ -->
+<div id="view-calc" class="view active">
+  <header>
+    <div class="sub">Permeability Test Rig</div>
+    <h1>Orifice Flow Calculator</h1>
+  </header>
+
+  <button class="gps-btn" id="gps-btn" onclick="fetchWeather()">
+    <span id="gps-btn-text">⊕ Use GPS for Pₐₜₘ &amp; T</span>
+  </button>
+
+  <!-- Weather confirm panel -->
+  <div id="weather-confirm" style="display:none;background:var(--panel);border:1px solid var(--accent3);border-radius:8px;padding:12px 14px;gap:10px;flex-direction:column;">
+    <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--accent3);letter-spacing:1px;">GPS WEATHER</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="weather-preview"></div>
+    <!-- Location search override -->
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" id="loc-search-input" placeholder="Refine location…"
+        style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;
+               color:var(--text);font-family:'Barlow',sans-serif;font-size:14px;
+               padding:7px 10px;outline:none;min-width:0;"
+        onkeydown="if(event.key==='Enter')searchLocation()">
+      <button class="photo-btn" onclick="searchLocation()" style="flex-shrink:0;">🔍 Search</button>
+    </div>
+    <div id="loc-search-results" style="display:none;flex-direction:column;gap:4px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="log-btn" style="flex:1;padding:9px;" onclick="applyWeather()">✓ Apply</button>
+      <button class="log-btn" style="flex:1;padding:9px;border-color:var(--muted);color:var(--muted);" onclick="dismissWeather()">✕ Dismiss</button>
+    </div>
+  </div>
+  <div class="inputs">
+    <div class="field">
+      <div class="field-label"><div class="name">Plenum Pressure</div><div class="sym">P₁</div></div>
+      <div class="input-wrap"><input type="text" inputmode="decimal" id="p1" value="21.325"><span class="unit">kPa g</span></div>
+    </div>
+    <div class="field">
+      <div class="field-label"><div class="name">Differential Pressure</div><div class="sym o">ΔP</div></div>
+      <div class="input-wrap"><input type="text" inputmode="decimal" id="dp" value="2.0"><span class="unit">kPa</span></div>
+    </div>
+    <div class="field">
+      <div class="field-label"><div class="name">Atmospheric Pressure</div><div class="sym">Pₐₜₘ</div></div>
+      <div class="input-wrap"><input type="text" inputmode="decimal" id="patm" value="101.325"><span class="unit">kPa abs</span></div>
+    </div>
+    <div class="field">
+      <div class="field-label"><div class="name">Air Temperature</div><div class="sym">T</div></div>
+      <div class="input-wrap"><input type="text" inputmode="decimal" id="temp" value="20"><span class="unit">°C</span></div>
+    </div>
+  </div>
+  <div class="results">
+    <div class="result-main">
+      <div class="r-label">Mass Flow Rate</div>
+      <div class="r-value" id="r-mdot">—</div>
+      <div class="r-unit">kg / s / m</div>
+    </div>
+    <div class="divider"></div>
+    <div class="result-abs">
+      <div class="ra-label">Absolute Mass Flow</div>
+      <div class="ra-value" id="r-mdot-abs">—</div>
+      <div class="ra-unit">kg / s</div>
+    </div>
+    <div class="divider"></div>
+    <div class="params-summary">
+      <div class="ps-item"><span class="ps-label">P₁</span><span class="ps-value" id="ps-p1">—</span><span class="ps-unit">kPa abs</span></div>
+      <div class="ps-item"><span class="ps-label">ΔP</span><span class="ps-value" id="ps-dp">—</span><span class="ps-unit">kPa</span></div>
+      <div class="ps-item"><span class="ps-label">Pₐₜₘ</span><span class="ps-value" id="ps-patm">—</span><span class="ps-unit">kPa</span></div>
+      <div class="ps-item"><span class="ps-label">T</span><span class="ps-value" id="ps-temp">—</span><span class="ps-unit">°C</span></div>
+      <div class="ps-item"><span class="ps-label">D_seal</span><span class="ps-value" id="ps-seal">—</span><span class="ps-unit">mm</span></div>
+    </div>
+  </div>
+  <div class="warning-box" id="warn-choked">⚠ CHOKED FLOW — ΔP alone does not determine mass flow</div>
+  <button class="log-btn" onclick="logReading()">⊕ Log Reading to Active Location</button>
+</div>
+
+<!-- ══ CHART VIEW ══ -->
+<div id="view-chart" class="view">
+  <div class="chart-header">
+    <h2>Flow vs Pressure</h2>
+    <div style="display:flex;gap:8px;">
+      <button class="log-btn" id="power-toggle-btn" style="width:auto;padding:7px 14px;font-size:13px;" onclick="togglePower()">⚡ Power</button>
+      <button class="log-btn" style="width:auto;padding:7px 14px;font-size:13px;" onclick="fitChart()">⊡ Fit</button>
+      <button class="log-btn" style="width:auto;padding:7px 14px;font-size:13px;" onclick="showAddLocation()">+ Location</button>
+    </div>
+  </div>
+  <div id="loc-add-row" style="display:none;gap:6px;align-items:center;padding-bottom:4px;">
+    <input type="text" id="loc-add-input" placeholder="Location name…" style="flex:1;background:var(--bg);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:15px;padding:6px 10px;outline:none;">
+    <button class="log-btn" style="width:auto;padding:6px 14px;font-size:12px;flex-shrink:0;" onclick="confirmAddLocation()">✓</button>
+    <button class="log-btn" style="width:auto;padding:6px 14px;font-size:12px;flex-shrink:0;border-color:var(--muted);color:var(--muted);" onclick="cancelAddLocation()">✕</button>
+  </div>
+  <div class="locations-bar" id="locations-bar"></div>
+  <div id="loc-rename-row" style="display:none;padding:0 0 4px;gap:6px;align-items:center;">
+    <input type="text" id="loc-rename-input" style="flex:1;background:var(--bg);border:1px solid var(--accent);border-radius:6px;color:var(--text);font-family:'Share Tech Mono',monospace;font-size:15px;padding:6px 10px;outline:none;">
+    <button class="log-btn" style="width:auto;padding:6px 14px;font-size:12px;flex-shrink:0;" onclick="confirmRename()">✓</button>
+    <button class="log-btn" style="width:auto;padding:6px 14px;font-size:12px;flex-shrink:0;border-color:var(--muted);color:var(--muted);" onclick="cancelRename()">✕</button>
+  </div>
+  <div class="chart-wrap"><canvas id="chart-canvas"></canvas></div>
+  <div class="fit-summary" id="fit-summary">
+    <div><div class="fs-label">Power law fit</div><div class="fs-eq" id="fs-eq">—</div></div>
+    <div style="text-align:right;"><div class="fs-label">@ 0 kPa abs</div><div class="fs-extrap" id="fs-extrap">—</div></div>
+  </div>
+  <div class="data-table">
+    <table>
+      <thead><tr><th>#</th><th>P₁ abs (kPa)</th><th id="th-mdot">ṁ (kg/s/m)</th><th></th></tr></thead>
+      <tbody id="data-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══ SETTINGS VIEW ══ -->
+<div id="view-settings" class="view">
+  <div class="settings-header">
+    <div class="sub">Configuration</div>
+    <h2>Settings</h2>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Seal Geometry</div>
+    <div class="settings-fields">
+      <div class="field">
+        <div class="field-label"><div class="name">Seal Diameter</div><div class="sym">D_seal</div></div>
+        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-seal-dia" value="150"><span class="unit">mm</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Orifice Meter</div>
+    <div class="settings-fields">
+      <div class="field">
+        <div class="field-label"><div class="name">Pipe Diameter</div><div class="sym">D</div></div>
+        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-pipe-dia" value="37"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <div class="field-label"><div class="name">Orifice Diameter</div><div class="sym">d</div></div>
+        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-orifice-dia" value="28"><span class="unit">mm</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <div class="settings-section-title">Air Constants</div>
+    <div class="settings-fields">
+      <div class="field">
+        <div class="field-label"><div class="name">Specific Gas Constant</div><div class="sym">R</div></div>
+        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-R" value="287.05"><span class="unit">J/kg·K</span></div>
+      </div>
+      <div class="field">
+        <div class="field-label"><div class="name">Ratio of Specific Heats</div><div class="sym">κ</div></div>
+        <div class="input-wrap"><input type="text" inputmode="decimal" id="s-kappa" value="1.4"><span class="unit">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-note">
+    <strong>kg/s/m</strong> is calculated by dividing the mass flow rate by the seal circumference
+    (π × D_seal). This normalises flow per unit length of seal perimeter.
+  </div>
+
+  <div class="saved-badge" id="saved-badge">✓ Settings saved</div>
+  <button class="reset-btn" onclick="resetSettings()">Reset to Defaults</button>
+</div>
+
+<script>
+/* ═══════════════════════════════════
+   DEFAULTS & PERSISTENCE
+═══════════════════════════════════ */
+const DEFAULTS = {
+  sealDia: 150,   // mm
+  pipeDia: 37,    // mm
+  orificeDia: 28, // mm
+  R: 287.05,
+  kappa: 1.4
+};
+
+let CFG = {...DEFAULTS};
+
+function loadSettings(){
+  try {
+    const s = localStorage.getItem('sealCalcSettings');
+    if(s) CFG = {...DEFAULTS, ...JSON.parse(s)};
+  } catch(e){}
+  document.getElementById('s-seal-dia').value    = CFG.sealDia;
+  document.getElementById('s-pipe-dia').value    = CFG.pipeDia;
+  document.getElementById('s-orifice-dia').value = CFG.orificeDia;
+  document.getElementById('s-R').value           = CFG.R;
+  document.getElementById('s-kappa').value       = CFG.kappa;
+}
+
+function saveSettings(){
+  CFG.sealDia    = parseFloat(document.getElementById('s-seal-dia').value)    || DEFAULTS.sealDia;
+  CFG.pipeDia    = parseFloat(document.getElementById('s-pipe-dia').value)    || DEFAULTS.pipeDia;
+  CFG.orificeDia = parseFloat(document.getElementById('s-orifice-dia').value) || DEFAULTS.orificeDia;
+  CFG.R          = parseFloat(document.getElementById('s-R').value)           || DEFAULTS.R;
+  CFG.kappa      = parseFloat(document.getElementById('s-kappa').value)       || DEFAULTS.kappa;
+  try { localStorage.setItem('sealCalcSettings', JSON.stringify(CFG)); } catch(e){}
+  // flash saved badge
+  const b = document.getElementById('saved-badge');
+  b.classList.add('show');
+  setTimeout(()=>b.classList.remove('show'), 1800);
+  calculate();
+}
+
+function resetSettings(){
+  CFG = {...DEFAULTS};
+  loadSettings();
+  saveSettings();
+}
+
+/* ═══════════════════════════════════
+   PHYSICS
+═══════════════════════════════════ */
+function getDerivedGeometry(){
+  const D   = CFG.pipeDia   / 1000;
+  const d   = CFG.orificeDia / 1000;
+  return { D, d, beta: d/D, A_o: Math.PI*d*d/4 };
+}
+
+function Cd_RHG(Re, b){
+  const b4=Math.pow(b,4), A=Math.pow(19000*b/Re, 0.8);
+  return 0.5961+0.0261*b*b-0.216*Math.pow(b,8)
+    +0.000521*Math.pow(19000*b/Re,0.7)
+    +(0.0188+0.0063*A)*Math.pow(b,3.5)*Math.pow(1e6/Re,0.3)
+    +(0.043+0.080-0.123)*(1-0.11*A)*b4/(1-b4)
+    -0.031*(-1+Math.pow(b,1.3));
+}
+function expansibility(P1,P2,b,kappa){
+  const b4=Math.pow(b,4), tau=P2/P1;
+  return 1-(0.351+0.256*b4+0.93*b4*b4)*(1-Math.pow(tau,1/kappa));
+}
+function airViscosity(T){
+  const T0=291.15,mu0=1.827e-5,C=120;
+  return mu0*Math.pow(T/T0,1.5)*(T0+C)/(T+C);
+}
+
+function sealCircumference(){ return Math.PI * (CFG.sealDia/1000); } // m
+
+let lastMdotPerM=null, lastP1abs=null;
+
+function calculate(){
+  const p1raw = parseFloat(document.getElementById('p1').value);
+  const dp    = parseFloat(document.getElementById('dp').value);
+  const patm  = parseFloat(document.getElementById('patm').value);
+  const T_C   = parseFloat(document.getElementById('temp').value);
+  if([p1raw,dp,patm,T_C].some(isNaN)){lastMdotPerM=null;return;}
+
+  const {D,d,beta,A_o} = getDerivedGeometry();
+  const kappa = CFG.kappa, R = CFG.R;
+
+  const p1g   = -Math.abs(p1raw);
+  const p1abs = patm+p1g, P1=p1abs*1000, dP=dp*1000, P2=P1-dP, T_K=T_C+273.15;
+
+  const crit=Math.pow(2/(kappa+1),kappa/(kappa-1));
+  document.getElementById('warn-choked').classList.toggle('visible',(P2/P1)<crit);
+
+  const rho1=P1/(R*T_K), mu=airViscosity(T_K), eps=expansibility(P1,P2,beta,kappa);
+  let Cd=0.61, mdot=0, Re_D=0;
+  for(let i=0;i<20;i++){
+    mdot=Cd*eps*A_o*Math.sqrt(2*rho1*dP/(1-Math.pow(beta,4)));
+    const vp=mdot/(rho1*Math.PI*D*D/4); Re_D=rho1*vp*D/mu;
+    const Cdn=Cd_RHG(Re_D,beta);
+    if(Math.abs(Cdn-Cd)<1e-7){Cd=Cdn;break;} Cd=Cdn;
+  }
+  const v=(mdot/rho1)/A_o;
+  const circ=sealCircumference();
+  const mdotPerM = mdot/circ;
+
+  const fmt=(v,dec)=>(!isFinite(v)||isNaN(v))?'—':v.toFixed(dec);
+  document.getElementById('r-mdot').textContent     = fmt(mdotPerM,6);
+  document.getElementById('r-mdot-abs').textContent = fmt(mdot,6);
+  document.getElementById('ps-p1').textContent      = fmt(p1abs,3);
+  document.getElementById('ps-dp').textContent      = fmt(dp,3);
+  document.getElementById('ps-patm').textContent    = fmt(patm,3);
+  document.getElementById('ps-temp').textContent    = fmt(T_C,1);
+  document.getElementById('ps-seal').textContent    = CFG.sealDia;
+  lastMdotPerM=mdotPerM; lastP1abs=p1abs;
+}
+
+/* ═══════════════════════════════════
+   GPS + WEATHER (Open-Meteo, no key)
+═══════════════════════════════════ */
+let pendingWeather = null;
+
+function fetchWeather(){
+  const btn = document.getElementById('gps-btn');
+  const txt = document.getElementById('gps-btn-text');
+  if(!navigator.geolocation){
+    txt.textContent = '✕ GPS not available';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      btn.classList.add('loading');
+      txt.textContent = '⟳ Fetching weather…';
+      const {latitude:lat, longitude:lon} = pos.coords;
+      try {
+        // Fetch weather and reverse geocode in parallel
+        const weatherUrl = 'https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)+'&current=temperature_2m,surface_pressure&timezone=auto';
+        const geoUrl     = 'https://nominatim.openstreetmap.org/reverse?lat='+lat.toFixed(5)+'&lon='+lon.toFixed(5)+'&format=json';
+
+        const [weatherRes, geoRes] = await Promise.all([fetch(weatherUrl), fetch(geoUrl)]);
+        const weatherData = await weatherRes.json();
+        const geoData     = await geoRes.json();
+
+        const t    = weatherData.current.temperature_2m;
+        const p    = weatherData.current.surface_pressure;
+        const pkpa = (p / 10).toFixed(3);
+
+        // Build a readable location string from Nominatim
+        const addr = geoData.address || {};
+        const locParts = [
+          addr.road || addr.pedestrian || addr.suburb,
+          addr.city || addr.town || addr.village || addr.county,
+          addr.country
+        ].filter(Boolean);
+        const locStr = locParts.join(', ') || (lat.toFixed(4)+', '+lon.toFixed(4));
+
+        pendingWeather = { t, p: parseFloat(pkpa), location: locStr };
+
+        document.getElementById('weather-preview').innerHTML =
+          '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;text-align:center;grid-column:1/-1;">' +
+            '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">LOCATION</div>' +
+            '<div style="font-family:Barlow,sans-serif;font-size:14px;color:var(--accent3);line-height:1.3;">'+locStr+'</div>' +
+          '</div>' +
+          '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;text-align:center;">' +
+            '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">PRESSURE</div>' +
+            '<div style="font-family:Share Tech Mono,monospace;font-size:22px;color:var(--accent3);">'+pkpa+'</div>' +
+            '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);">kPa abs</div>' +
+          '</div>' +
+          '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;text-align:center;">' +
+            '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TEMPERATURE</div>' +
+            '<div style="font-family:Share Tech Mono,monospace;font-size:22px;color:var(--accent3);">'+t.toFixed(1)+'</div>' +
+            '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);">°C</div>' +
+          '</div>';
+        document.getElementById('weather-confirm').style.display = 'flex';
+        btn.classList.remove('loading');
+        txt.textContent = '⊕ Use GPS for Pₐₜₘ & T';
+      } catch(e) {
+        btn.classList.remove('loading');
+        txt.textContent = '✕ Weather fetch failed';
+        setTimeout(function(){txt.textContent='⊕ Use GPS for Pₐₜₘ & T';}, 3000);
+      }
+    },
+    function(err) {
+      txt.textContent = '✕ Location denied ('+err.code+')';
+      setTimeout(function(){txt.textContent='⊕ Use GPS for Pₐₜₘ & T';}, 4000);
+    },
+    {timeout:15000, maximumAge:300000, enableHighAccuracy:false}
+  );
+}
+
+async function searchLocation(){
+  const query = document.getElementById('loc-search-input').value.trim();
+  if(!query) return;
+  const resultsDiv = document.getElementById('loc-search-results');
+  resultsDiv.style.display='flex';
+  resultsDiv.innerHTML='<div style="font-family:Share Tech Mono,monospace;font-size:12px;color:var(--muted);padding:4px 0;">Searching…</div>';
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(query)+'&format=json&limit=5';
+    const res  = await fetch(url);
+    const data = await res.json();
+    if(!data.length){
+      resultsDiv.innerHTML='<div style="font-family:Share Tech Mono,monospace;font-size:12px;color:var(--muted);padding:4px 0;">No results found</div>';
+      return;
+    }
+    resultsDiv.innerHTML='';
+    data.forEach(function(item){
+      const btn=document.createElement('button');
+      btn.style.cssText='background:var(--bg);border:1px solid var(--border);border-radius:6px;'+
+        'color:var(--text);font-family:Barlow,sans-serif;font-size:13px;padding:8px 10px;'+
+        'text-align:left;cursor:pointer;width:100%;line-height:1.4;';
+      btn.textContent=item.display_name;
+      btn.onclick=function(){ selectSearchResult(item); };
+      resultsDiv.appendChild(btn);
+    });
+  } catch(e) {
+    resultsDiv.innerHTML='<div style="font-family:Share Tech Mono,monospace;font-size:12px;color:var(--accent2);padding:4px 0;">Search failed</div>';
+  }
+}
+
+async function selectSearchResult(item){
+  // Update location name in preview
+  const locStr = item.display_name;
+  if(pendingWeather) pendingWeather.location = locStr;
+
+  // Fetch updated weather for the selected location
+  const lat = parseFloat(item.lat), lon = parseFloat(item.lon);
+  const resultsDiv = document.getElementById('loc-search-results');
+  resultsDiv.innerHTML='<div style="font-family:Share Tech Mono,monospace;font-size:12px;color:var(--muted);padding:4px 0;">Fetching weather…</div>';
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)+'&current=temperature_2m,surface_pressure&timezone=auto';
+    const res  = await fetch(url);
+    const data = await res.json();
+    const t    = data.current.temperature_2m;
+    const p    = data.current.surface_pressure;
+    const pkpa = (p / 10).toFixed(3);
+    pendingWeather = { t, p: parseFloat(pkpa), location: locStr };
+
+    // Shorten display name to city/country
+    const parts = locStr.split(',');
+    const shortName = parts.slice(0, 3).join(',');
+
+    document.getElementById('weather-preview').innerHTML =
+      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;text-align:center;grid-column:1/-1;">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">LOCATION</div>' +
+        '<div style="font-family:Barlow,sans-serif;font-size:13px;color:var(--accent3);line-height:1.3;">'+shortName+'</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;text-align:center;">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">PRESSURE</div>' +
+        '<div style="font-family:Share Tech Mono,monospace;font-size:22px;color:var(--accent3);">'+pkpa+'</div>' +
+        '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);">kPa abs</div>' +
+      '</div>' +
+      '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;text-align:center;">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">TEMPERATURE</div>' +
+        '<div style="font-family:Share Tech Mono,monospace;font-size:22px;color:var(--accent3);">'+t.toFixed(1)+'</div>' +
+        '<div style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--muted);">°C</div>' +
+      '</div>';
+    resultsDiv.style.display='none';
+    resultsDiv.innerHTML='';
+    document.getElementById('loc-search-input').value='';
+  } catch(e) {
+    resultsDiv.innerHTML='<div style="font-family:Share Tech Mono,monospace;font-size:12px;color:var(--accent2);padding:4px 0;">Weather fetch failed</div>';
+  }
+}
+
+function applyWeather(){
+  if(!pendingWeather) return;
+  document.getElementById('patm').value = pendingWeather.p;
+  document.getElementById('temp').value = pendingWeather.t.toFixed(1);
+  calculate();
+  dismissWeather();
+}
+
+function dismissWeather(){
+  pendingWeather = null;
+  document.getElementById('weather-confirm').style.display = 'none';
+  document.getElementById('loc-search-results').style.display = 'none';
+  document.getElementById('loc-search-results').innerHTML = '';
+  document.getElementById('loc-search-input').value = '';
+}
+
+/* ═══════════════════════════════════
+   LOCATIONS & DATA
+═══════════════════════════════════ */
+const COLORS=['#00d4aa','#ff6b35','#4fc3f7','#f7c948','#c084fc','#f472b6'];
+let locations=[{name:'Location 1',data:[]}];
+let activeIdx=0;
+
+function saveLocations(){ try{localStorage.setItem('sealCalcLocations',JSON.stringify({locations,activeIdx}));}catch(e){} }
+function loadLocations(){
+  try{
+    const s=localStorage.getItem('sealCalcLocations');
+    if(s){
+      const o=JSON.parse(s);
+      locations=o.locations.map(l=>({visible:true,...l}));
+      activeIdx=o.activeIdx||0;
+    }
+  }catch(e){}
+}
+
+function showAddLocation(){
+  const row=document.getElementById('loc-add-row');
+  row.style.display='flex';
+  document.getElementById('loc-add-input').value='Location '+(locations.length+1);
+  document.getElementById('loc-add-input').focus();
+  document.getElementById('loc-add-input').select();
+}
+function confirmAddLocation(){
+  const name=document.getElementById('loc-add-input').value.trim();
+  if(!name)return;
+  locations.push({name, data:[], visible:true});
+  activeIdx=locations.length-1;
+  cancelAddLocation();
+  saveLocations(); renderLocations(); renderChart(); renderTable();
+}
+function cancelAddLocation(){
+  document.getElementById('loc-add-row').style.display='none';
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const ai=document.getElementById('loc-add-input');
+  if(ai) ai.addEventListener('keydown',e=>{if(e.key==='Enter')confirmAddLocation();if(e.key==='Escape')cancelAddLocation();});
+  const ri=document.getElementById('loc-rename-input');
+  if(ri) ri.addEventListener('keydown',e=>{if(e.key==='Enter')confirmRename();if(e.key==='Escape')cancelRename();});
+});
+
+function addLocation(){ showAddLocation(); }
+
+let renamingIdx=null;
+function startRename(i){
+  renamingIdx=i;
+  const row=document.getElementById('loc-rename-row');
+  row.style.display='flex';
+  document.getElementById('loc-rename-input').value=locations[i].name;
+  document.getElementById('loc-rename-input').focus();
+  document.getElementById('loc-rename-input').select();
+}
+function confirmRename(){
+  const name=document.getElementById('loc-rename-input').value.trim();
+  if(name&&renamingIdx!==null) locations[renamingIdx].name=name;
+  cancelRename();
+  saveLocations(); renderLocations(); renderChart();
+}
+function cancelRename(){
+  renamingIdx=null;
+  document.getElementById('loc-rename-row').style.display='none';
+}
+
+function toggleVisible(i){
+  locations[i].visible = locations[i].visible === false ? true : false;
+  saveLocations(); renderLocations(); renderChart();
+}
+
+function renderLocations(){
+  const bar=document.getElementById('locations-bar');
+  bar.innerHTML='';
+  locations.forEach((loc,i)=>{
+    const visible = loc.visible !== false;
+    const col=COLORS[i%COLORS.length];
+    const wrap=document.createElement('div');
+    wrap.style.cssText='display:inline-flex;align-items:center;gap:3px;flex-shrink:0;';
+
+    const pill=document.createElement('button');
+    pill.className='loc-pill'+(i===activeIdx?' active':'');
+    pill.textContent=loc.name;
+    if(i===activeIdx){pill.style.borderColor=col;pill.style.color=col;}
+    if(!visible){pill.style.opacity='0.35';pill.style.textDecoration='line-through';}
+    pill.onclick=()=>{activeIdx=i;renderLocations();renderChart();renderTable();};
+
+    const eyeBtn=document.createElement('button');
+    eyeBtn.textContent=visible?'◉':'◎';
+    eyeBtn.title=visible?'Hide':'Show';
+    eyeBtn.style.cssText=`background:none;border:none;color:${visible?col:'var(--muted)'};font-size:14px;cursor:pointer;padding:2px 3px;line-height:1;flex-shrink:0;opacity:${visible?1:0.45};`;
+    eyeBtn.onclick=(e)=>{e.stopPropagation();toggleVisible(i);};
+
+    const editBtn=document.createElement('button');
+    editBtn.textContent='✎';
+    editBtn.title='Rename';
+    editBtn.style.cssText='background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 3px;line-height:1;flex-shrink:0;';
+    editBtn.onclick=(e)=>{e.stopPropagation();startRename(i);};
+
+    const delBtn=document.createElement('button');
+    delBtn.textContent='×';
+    delBtn.title='Delete';
+    delBtn.style.cssText='background:none;border:none;color:var(--accent2);font-size:18px;cursor:pointer;padding:2px 3px;line-height:1;flex-shrink:0;';
+    delBtn.onclick=function(e){
+      e.stopPropagation();
+      if(locations.length===1){alert('Cannot delete the only location.');return;}
+      if(!confirm('Delete "'+loc.name+'" and all its readings?')) return;
+      locations.splice(i,1);
+      if(activeIdx>=locations.length) activeIdx=locations.length-1;
+      saveLocations(); renderLocations(); renderChart(); renderTable();
+    };
+
+    wrap.appendChild(pill);
+    wrap.appendChild(eyeBtn);
+    wrap.appendChild(editBtn);
+    wrap.appendChild(delBtn);
+    bar.appendChild(wrap);
+  });
+}
+
+function logReading(){
+  if(lastMdotPerM===null||lastP1abs===null){alert('Calculate a valid reading first.');return;}
+  const patm=parseFloat(document.getElementById('patm').value)||101.325;
+  locations[activeIdx].data.push({p:lastP1abs, m:lastMdotPerM, patm});
+  locations[activeIdx].data.sort((a,b)=>a.p-b.p);
+  saveLocations(); switchTab('chart');
+  renderLocations(); renderChart(); renderTable();
+}
+
+function deletePoint(locIdx,ptIdx){
+  locations[locIdx].data.splice(ptIdx,1);
+  saveLocations(); renderChart(); renderTable();
+}
+
+/* ═══════════════════════════════════
+   POWER LAW FIT  ṁ = a · |P_gauge|^b
+   X = |gauge pressure| = Pₐₜₘ - P₁_abs
+   Constrained through 0,0: at gauge=0, flow=0
+   b fitted by least squares in log space;
+   a then set so curve best fits data (not forced,
+   since log-linear regression already gives best a).
+   The 0,0 constraint is satisfied naturally because
+   ṁ = a·0^b = 0 for b>0.
+═══════════════════════════════════ */
+function powerLawFit(pts){
+  const valid=pts.filter(p=>{
+    const patm=p.patm||101.325;
+    return (patm-p.p)>0 && p.m>0;
+  });
+  if(valid.length<2)return null;
+  // Convert to gauge magnitude: x = patm - p_abs (positive number)
+  const pairs=valid.map(p=>({x:((p.patm||101.325)-p.p), y:p.m}));
+  // Log-linear regression: ln(y) = ln(a) + b*ln(x)
+  const n=pairs.length;
+  let sx=0,sy=0,sxx=0,sxy=0;
+  pairs.forEach(({x,y})=>{const lx=Math.log(x),ly=Math.log(y);sx+=lx;sy+=ly;sxx+=lx*lx;sxy+=lx*ly;});
+  const b=(n*sxy-sx*sy)/(n*sxx-sx*sx);
+  const a=Math.exp((sy-b*sx)/n);
+  const patmMean=valid.reduce((s,p)=>s+(p.patm||101.325),0)/n;
+  return {a, b, patm:patmMean};
+}
+
+/* ═══════════════════════════════════
+   CHART ZOOM STATE
+═══════════════════════════════════ */
+let chartFitted = false;
+let showPower   = false;
+
+function fitChart(){
+  chartFitted = !chartFitted;
+  document.querySelector('[onclick="fitChart()"]').textContent = chartFitted ? '⊡ Full' : '⊡ Fit';
+  renderChart();
+}
+
+function togglePower(){
+  showPower = !showPower;
+  const btn = document.getElementById('power-toggle-btn');
+  btn.classList.toggle('on', showPower);
+  renderChart();
+}
+
+
+// Nice axis: clean step, starts at 0
+function niceAxis(dataMax, nTicks){
+  if(!dataMax||dataMax<=0) dataMax=0.0001;
+  const roughStep=dataMax/nTicks;
+  const mag=Math.pow(10,Math.floor(Math.log10(roughStep)));
+  const norm=roughStep/mag;
+  const nice=norm<1.5?1:norm<3?2:norm<7?5:10;
+  const step=nice*mag;
+  const axMax=Math.ceil(dataMax/step)*step;
+  const ticks=[];
+  for(let i=0;i<=Math.round(axMax/step);i++) ticks.push(parseFloat((i*step).toPrecision(10)));
+  return {max:axMax, step, ticks};
+}
+
+function renderChart(){
+  const canvas=document.getElementById('chart-canvas');
+  const wrap=canvas.parentElement;
+  canvas.width=wrap.clientWidth*window.devicePixelRatio;
+  canvas.height=wrap.clientHeight*window.devicePixelRatio;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio,window.devicePixelRatio);
+  const W=wrap.clientWidth,H=wrap.clientHeight;
+  const ml=62, mr=showPower?62:16, mt=16, mb=44, cw=W-ml-mr, ch=H-mt-mb;
+
+  // Collect data
+  let allM=[0];
+  locations.forEach(loc=>loc.data.forEach(pt=>{ allM.push(pt.m); }));
+
+  const maxG=30;
+  let maxM=0.0001;
+  const hasData=allM.filter(m=>m>0).length>0;
+
+  if(chartFitted && hasData){
+    const dM=allM.filter(m=>m>0), pad=v=>v*0.12;
+    maxM=Math.max(...dM)+pad(Math.max(...dM));
+  } else {
+    maxM=Math.max(...allM)*1.15||0.0001;
+  }
+
+  // Extend maxM for extrapolated curve peak
+  locations.forEach(loc=>{
+    const fit=powerLawFit(loc.data);
+    if(fit){ const peak=fit.a*Math.pow(maxG,fit.b); if(isFinite(peak)&&peak>maxM) maxM=peak*1.08; }
+  });
+
+  // Compute max power
+  const R_air=CFG.R||287.05, T_ref=293.15;
+  let rawPowMax=0;
+  if(showPower){
+    locations.forEach(loc=>{ const fit=powerLawFit(loc.data); if(!fit)return;
+      const rho=(fit.patm*1000)/(R_air*T_ref);
+      for(let g=0;g<=maxG;g+=0.1){ const mdotm=g===0?0:fit.a*Math.pow(g,fit.b); const pw=mdotm*(g*1000)/rho; if(isFinite(pw)&&pw>rawPowMax)rawPowMax=pw; }
+    });
+  }
+
+  const N=5;
+  const axM=niceAxis(maxM, N);
+  const axP=showPower ? niceAxis(rawPowMax||1, N) : null;
+
+  // Mapping functions — each axis independently maps 0..max to bottom..top
+  const pyM=m=>mt+ch-(m/axM.max*ch);
+  const pyP=p=>mt+ch-(p/(axP?axP.max:1)*ch);
+  const px =g=>ml+(maxG-g)/maxG*cw;
+
+  ctx.fillStyle='#161b22'; ctx.fillRect(0,0,W,H);
+
+  // ── Grid lines: use flow axis ticks (they are always clean) ──
+  ctx.strokeStyle='rgba(48,54,61,0.6)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+  axM.ticks.forEach(m=>{ const y=pyM(m); if(y<mt-1||y>mt+ch+1)return; ctx.beginPath();ctx.moveTo(ml,y);ctx.lineTo(ml+cw,y);ctx.stroke(); });
+  for(let g=0;g<=maxG;g+=5){ ctx.beginPath();ctx.moveTo(px(g),mt);ctx.lineTo(px(g),mt+ch);ctx.stroke(); }
+  ctx.setLineDash([]);
+
+  // ── Axis lines ──
+  ctx.strokeStyle='#30363d'; ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(ml,mt);ctx.lineTo(ml,mt+ch);ctx.lineTo(ml+cw,mt+ch);ctx.stroke();
+  if(showPower){ ctx.beginPath();ctx.moveTo(ml+cw,mt);ctx.lineTo(ml+cw,mt+ch);ctx.stroke(); }
+
+  // ── X labels ──
+  ctx.fillStyle='#7d8590'; ctx.font='13.5px Share Tech Mono,monospace'; ctx.textAlign='center';
+  for(let g=0;g<=maxG;g+=5) ctx.fillText(g===0?'0':'-'+g, px(g), mt+ch+18);
+
+  // ── Left Y labels (flow) — clean ticks at their own positions ──
+  const decM=axM.step<0.00001?6:axM.step<0.0001?5:axM.step<0.001?4:axM.step<0.01?3:axM.step<0.1?2:1;
+  ctx.textAlign='right'; ctx.fillStyle='#7d8590';
+  axM.ticks.forEach(m=>{ const y=pyM(m); if(y<mt-1||y>mt+ch+1)return; ctx.fillText(m.toFixed(decM),ml-5,y+5); });
+
+  // ── Right Y labels (power) — clean ticks at their own positions ──
+  if(showPower && axP){
+    const decP=axP.step<0.01?3:axP.step<0.1?2:axP.step<1?1:0;
+    ctx.fillStyle='#f7c948'; ctx.font='13.5px Share Tech Mono,monospace'; ctx.textAlign='left';
+    axP.ticks.forEach(p=>{ const y=pyP(p); if(y<mt-1||y>mt+ch+1)return; ctx.fillText(p.toFixed(decP),ml+cw+6,y+5); });
+  }
+
+  // ── Axis titles ──
+  ctx.save();ctx.translate(14,mt+ch/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillStyle='#7d8590';ctx.font='15px Barlow,sans-serif';
+  ctx.fillText('ṁ  (kg/s/m)',0,0);ctx.restore();
+  ctx.textAlign='center';ctx.fillStyle='#7d8590';ctx.font='15px Barlow,sans-serif';
+  ctx.fillText('P₁  gauge  (kPa)',ml+cw/2,H-8);
+  if(showPower){
+    ctx.save();ctx.translate(W-10,mt+ch/2);ctx.rotate(Math.PI/2);
+    ctx.textAlign='center';ctx.fillStyle='#f7c948';ctx.font='15px Barlow,sans-serif';
+    ctx.fillText('Power  (W/m)',0,0);ctx.restore();
+  }
+
+  // ── 0,0 origin marker ──
+  ctx.strokeStyle='rgba(255,107,53,0.3)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
+  ctx.beginPath();ctx.moveTo(px(0),mt);ctx.lineTo(px(0),mt+ch);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Flow curves + points ──
+  locations.forEach((loc,li)=>{
+    if(loc.visible===false) return;
+    const color=COLORS[li%COLORS.length];
+    const fit=powerLawFit(loc.data);
+    if(fit){
+      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.globalAlpha=0.65;
+      ctx.beginPath();let first=true;
+      for(let g=0;g<=maxG;g+=maxG/300){
+        const mm=g===0?0:fit.a*Math.pow(g,fit.b);
+        if(!isFinite(mm)||mm<0)continue;
+        const x=px(g),y=pyM(mm);
+        if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
+      }
+      ctx.stroke();ctx.globalAlpha=1;
+    }
+    loc.data.forEach(pt=>{
+      const g=(pt.patm||101.325)-pt.p;
+      ctx.fillStyle=color;ctx.beginPath();ctx.arc(px(g),pyM(pt.m),6,0,Math.PI*2);ctx.fill();
+    });
+  });
+
+  // ── Power curves ──
+  if(showPower){
+    locations.forEach((loc,li)=>{
+      if(loc.visible===false) return;
+      const fit=powerLawFit(loc.data);if(!fit)return;
+      const rho=(fit.patm*1000)/(R_air*T_ref);
+      const color=COLORS[li%COLORS.length];
+      ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.globalAlpha=0.9;ctx.setLineDash([6,4]);
+      ctx.beginPath();let first=true;
+      for(let g=0;g<=maxG;g+=maxG/300){
+        const mdotm=g===0?0:fit.a*Math.pow(g,fit.b);
+        const pow=mdotm*(g*1000)/rho;
+        if(!isFinite(pow)||pow<0)continue;
+        const x=px(g),y=pyP(pow);
+        if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
+      }
+      ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+    });
+  }
+
+  // ── Fit summary ──
+  const fit=powerLawFit(locations[activeIdx].data);
+  if(fit){
+    document.getElementById('fs-eq').textContent=`ṁ = ${fit.a.toExponential(3)} · |P_g|^${fit.b.toFixed(3)}`;
+    document.getElementById('fs-extrap').textContent=`0.000000 kg/s/m`;
+  } else {
+    document.getElementById('fs-eq').textContent='— (need ≥2 points)';
+    document.getElementById('fs-extrap').textContent='—';
+  }
+}
+
+function renderTable(){
+  const tbody=document.getElementById('data-tbody');
+  document.getElementById('th-mdot').textContent='ṁ (kg/s/m)';
+  tbody.innerHTML='';
+  const loc=locations[activeIdx];
+  if(loc.data.length===0){
+    tbody.innerHTML=`<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:12px;">No readings logged</td></tr>`;
+    return;
+  }
+  loc.data.forEach((pt,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}</td><td>${pt.p.toFixed(3)}</td><td>${pt.m.toFixed(6)}</td>
+      <td><button class="del-btn" onclick="deletePoint(${activeIdx},${i})">×</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ═══════════════════════════════════
+   TABS
+═══════════════════════════════════ */
+function switchTab(tab){
+  const tabs=['calc','chart','settings'];
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',tabs[i]===tab));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+tab).classList.add('active');
+  if(tab==='chart'){renderLocations();renderChart();renderTable();}
+}
+
+/* ═══════════════════════════════════
+   INIT
+═══════════════════════════════════ */
+window.addEventListener('load',()=>{
+  loadSettings();
+  loadLocations();
+  calculate();
+  renderLocations();
+  // settings inputs auto-save on change
+  ['s-seal-dia','s-pipe-dia','s-orifice-dia','s-R','s-kappa'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('change', saveSettings);
+    el.addEventListener('focus',()=>el.select());
+  });
+});
+window.addEventListener('resize',()=>{
+  if(document.getElementById('view-chart').classList.contains('active')) renderChart();
+});
+document.querySelectorAll('#view-calc input').forEach(el=>{
+  el.addEventListener('input',calculate);
+  el.addEventListener('focus',()=>el.select());
+});
+</script>
+</body>
+</html>
