@@ -1360,87 +1360,230 @@ function compressImage(file, maxW, maxH, quality, cb){
 }
 
 /* ═══════════════════════════════════
-   EXPORT → OUTLOOK (body text)
+   EXPORT → HTML REPORT (new tab)
 ═══════════════════════════════════ */
-function exportCSV(){
-  // Build HTML report as a data URL and open mailto
-  let html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'+
-    '<style>body{font-family:Arial,sans-serif;font-size:13px;color:#222;max-width:800px;margin:0 auto;padding:20px;}'+
-    'h1{font-size:20px;margin-bottom:4px;}h2{font-size:15px;margin:20px 0 6px;border-bottom:2px solid #00d4aa;padding-bottom:4px;color:#00d4aa;}'+
-    'table{width:100%;border-collapse:collapse;margin-bottom:16px;}th,td{padding:6px 10px;border:1px solid #ddd;text-align:right;font-size:12px;}'+
-    'th{background:#f5f5f5;text-align:center;}td:first-child{text-align:left;}'+
-    '.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}'+
-    '.photo-item img{width:100%;border-radius:4px;}.caption{font-size:11px;color:#666;margin-top:3px;}'+
-    '.notes{background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:10px;font-size:12px;color:#444;margin-bottom:10px;}'+
-    '.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold;}'+
-    '.best{background:#d4edda;color:#155724;}.worst{background:#f8d7da;color:#721c24;}'+
-    '</style></head><body>';
+async function exportCSV(){
+  const btn = document.querySelector('[onclick="exportCSV()"]');
+  const origText = btn.textContent;
+  btn.textContent = '⟳ Building report…';
+  btn.style.pointerEvents = 'none';
 
-  html += '<h1>Seal Flow Calculator — Results Export</h1>';
-  html += '<p style="color:#666;font-size:12px;">Generated: '+new Date().toLocaleString()+'</p>';
+  try {
+    // Build summary data
+    const fitted = locations.filter(l=>powerLawFit(l.data));
+    const scored = fitted.map(loc=>{
+      const fit=powerLawFit(loc.data);
+      return {loc,fit,val:fit.a*Math.pow(30,fit.b)};
+    }).filter(s=>isFinite(s.val)).sort((a,b)=>a.val-b.val);
 
-  // Summary table
-  const fitted = locations.filter(l=>powerLawFit(l.data));
-  const scored = fitted.map(loc=>{
-    const fit=powerLawFit(loc.data);
-    return {loc,fit,val:fit.a*Math.pow(30,fit.b)};
-  }).filter(s=>isFinite(s.val)).sort((a,b)=>a.val-b.val);
+    // Render summary chart to base64 PNG
+    const chartPng = await renderSummaryToPng(600, 320);
 
-  html += '<h2>Flow Rate Summary (kg/s/m)</h2>';
-  html += '<table><thead><tr><th>Location</th><th>ṁ @ −10 kPa</th><th>ṁ @ −20 kPa</th><th>ṁ @ −30 kPa</th><th>Fit: a</th><th>Fit: b</th><th>Rank</th></tr></thead><tbody>';
-  scored.forEach((s,si)=>{
-    const isBest=si===0, isWorst=si===scored.length-1&&scored.length>1;
-    const badge = isBest?'<span class="badge best">BEST</span>':isWorst?'<span class="badge worst">WORST</span>':'';
-    html += '<tr>'+
-      '<td>'+s.loc.name+'</td>'+
-      '<td>'+(s.fit.a*Math.pow(10,s.fit.b)).toFixed(6)+'</td>'+
-      '<td>'+(s.fit.a*Math.pow(20,s.fit.b)).toFixed(6)+'</td>'+
-      '<td>'+(s.fit.a*Math.pow(30,s.fit.b)).toFixed(6)+'</td>'+
-      '<td>'+s.fit.a.toExponential(4)+'</td>'+
-      '<td>'+s.fit.b.toFixed(4)+'</td>'+
-      '<td style="text-align:center;">'+badge+'</td>'+
-    '</tr>';
-  });
-  html += '</tbody></table>';
+    const date = new Date().toLocaleString();
+    const sealDia = CFG.sealDia + ' mm';
 
-  // Raw readings
-  html += '<h2>Raw Readings</h2>';
-  html += '<table><thead><tr><th>Location</th><th>#</th><th>P₁ abs (kPa)</th><th>ṁ (kg/s/m)</th></tr></thead><tbody>';
-  locations.forEach(loc=>{
-    loc.data.forEach((pt,i)=>{
-      html += '<tr><td>'+loc.name+'</td><td>'+(i+1)+'</td><td>'+pt.p.toFixed(3)+'</td><td>'+pt.m.toFixed(6)+'</td></tr>';
-    });
-  });
-  html += '</tbody></table>';
+    let html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seal Flow Report — ${new Date().toLocaleDateString()}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#1a1a1a;background:#fff;padding:28px 24px;max-width:900px;margin:0 auto;}
+  h1{font-size:22px;font-weight:700;color:#00d4aa;margin-bottom:2px;}
+  .meta{font-size:11px;color:#888;margin-bottom:24px;}
+  h2{font-size:14px;font-weight:700;color:#00d4aa;border-bottom:2px solid #00d4aa;padding-bottom:4px;margin:24px 0 10px;text-transform:uppercase;letter-spacing:1px;}
+  h3{font-size:12px;font-weight:700;color:#333;margin:16px 0 6px;}
+  table{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:12px;}
+  th{background:#f0faf8;color:#00a88a;font-weight:700;padding:7px 10px;border:1px solid #d0ede8;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;}
+  th:first-child{text-align:left;}
+  td{padding:6px 10px;border:1px solid #e8e8e8;text-align:right;}
+  td:first-child{text-align:left;font-weight:600;}
+  tr:nth-child(even) td{background:#fafafa;}
+  .best td{background:#e8f9f4!important;color:#00a88a;}
+  .worst td{background:#fff0ed!important;color:#d45a35;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;}
+  .badge-best{background:#c8f0e4;color:#007a5e;}
+  .badge-worst{background:#ffd8cc;color:#c0391a;}
+  .chart-wrap{text-align:center;margin:12px 0;}
+  .chart-wrap img{max-width:100%;border:1px solid #e0e0e0;border-radius:6px;}
+  .loc-section{border:1px solid #e8e8e8;border-radius:8px;padding:14px;margin-bottom:16px;}
+  .loc-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .loc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+  .loc-name{font-size:14px;font-weight:700;}
+  .notes-box{background:#f8f8f8;border:1px solid #e0e0e0;border-radius:4px;padding:10px;font-size:12px;color:#444;line-height:1.6;margin-bottom:12px;white-space:pre-wrap;}
+  .photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  @media(max-width:600px){.photo-grid{grid-template-columns:repeat(2,1fr);}}
+  .photo-card img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:5px;display:block;}
+  .photo-caption{font-size:10px;color:#666;margin-top:4px;text-align:center;}
+  .no-photo{background:#f5f5f5;border-radius:5px;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:11px;}
+  .share-tip{background:#fff8e8;border:1px solid #f0c040;border-radius:6px;padding:12px 14px;font-size:12px;color:#7a5c00;margin-bottom:20px;line-height:1.6;}
+  .divider{border:none;border-top:1px solid #e8e8e8;margin:20px 0;}
+  @media print{.share-tip{display:none;}}
+</style>
+</head>
+<body>
 
-  // Location notes and photos
-  html += '<h2>Location Notes & Photos</h2>';
-  locations.forEach(loc=>{
-    html += '<h3 style="font-size:13px;margin:14px 0 6px;">'+loc.name+'</h3>';
-    if(loc.notes){
-      html += '<div class="notes">'+loc.notes.replace(/\n/g,'<br>')+'</div>';
-    }
-    if(loc.photos&&loc.photos.length){
-      html += '<div class="photo-grid">';
-      loc.photos.forEach(p=>{
-        html += '<div class="photo-item"><img src="'+p.data+'">';
-        if(p.caption) html += '<div class="caption">'+p.caption+'</div>';
-        html += '</div>';
+<h1>Seal Flow Calculator</h1>
+<div class="meta">Report generated: ${date} &nbsp;·&nbsp; Seal diameter: ${sealDia}</div>
+
+<div class="share-tip">
+  📤 <strong>To send via Outlook:</strong> tap the Share button in Safari → tap <em>Outlook</em> to attach this report as a file.
+</div>`;
+
+    // ── Summary table ──
+    html += '<h2>Flow Rate Summary</h2>';
+    if(scored.length){
+      html += '<table><thead><tr><th>Location</th><th>ṁ @ −10 kPa</th><th>ṁ @ −20 kPa</th><th>ṁ @ −30 kPa</th><th>Fit: a</th><th>Fit: b</th><th></th></tr></thead><tbody>';
+      scored.forEach((s,si)=>{
+        const isBest=si===0, isWorst=si===scored.length-1&&scored.length>1;
+        const rowClass = isBest?'best':isWorst?'worst':'';
+        const badge = isBest?'<span class="badge badge-best">BEST</span>':isWorst?'<span class="badge badge-worst">WORST</span>':'';
+        html += `<tr class="${rowClass}">
+          <td>${s.loc.name}</td>
+          <td>${(s.fit.a*Math.pow(10,s.fit.b)).toFixed(6)}</td>
+          <td>${(s.fit.a*Math.pow(20,s.fit.b)).toFixed(6)}</td>
+          <td>${(s.fit.a*Math.pow(30,s.fit.b)).toFixed(6)}</td>
+          <td>${s.fit.a.toExponential(4)}</td>
+          <td>${s.fit.b.toFixed(4)}</td>
+          <td style="text-align:center">${badge}</td>
+        </tr>`;
       });
-      html += '</div>';
+      html += '</tbody></table>';
+    } else {
+      html += '<p style="color:#aaa;font-size:12px;">No fitted data yet.</p>';
     }
-  });
 
-  html += '</body></html>';
+    // ── Chart ──
+    if(chartPng){
+      html += '<div class="chart-wrap"><img src="'+chartPng+'" alt="Flow vs Pressure"></div>';
+    }
 
-  // Open as downloadable HTML file
-  const blob = new Blob([html], {type:'text/html'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = 'seal-flow-report-'+new Date().toISOString().slice(0,10)+'.html';
-  a.click();
-  URL.revokeObjectURL(url);
+    html += '<hr class="divider">';
+
+    // ── Raw readings ──
+    html += '<h2>Raw Readings</h2>';
+    html += '<table><thead><tr><th>Location</th><th>#</th><th>P₁ abs (kPa)</th><th>ṁ (kg/s/m)</th><th>mdot (kg/s)</th></tr></thead><tbody>';
+    locations.forEach(loc=>{
+      loc.data.forEach((pt,i)=>{
+        html += `<tr><td>${loc.name}</td><td>${i+1}</td><td>${pt.p.toFixed(3)}</td><td>${pt.m.toFixed(6)}</td><td>${pt.mdot!=null?pt.mdot.toFixed(6):'—'}</td></tr>`;
+      });
+    });
+    html += '</tbody></table>';
+
+    html += '<hr class="divider">';
+
+    // ── Location notes & photos ──
+    html += '<h2>Location Details</h2>';
+    const COLS = ['#00d4aa','#ff6b35','#4fc3f7','#f7c948','#c084fc','#f472b6'];
+    locations.forEach((loc,li)=>{
+      const col = COLS[li%COLS.length];
+      html += `<div class="loc-section">
+        <div class="loc-header">
+          <div class="loc-dot" style="background:${col};"></div>
+          <div class="loc-name">${loc.name}</div>
+        </div>`;
+      if(loc.notes){
+        html += `<div class="notes-box">${loc.notes}</div>`;
+      }
+      const photos = loc.photos||[];
+      if(photos.length){
+        html += '<div class="photo-grid">';
+        photos.forEach(p=>{
+          html += `<div class="photo-card">
+            <img src="${p.data}" alt="${p.caption||''}">
+            ${p.caption?`<div class="photo-caption">${p.caption}</div>`:''}
+          </div>`;
+        });
+        html += '</div>';
+      } else {
+        html += '<div style="color:#ccc;font-size:11px;">No photos added.</div>';
+      }
+      html += '</div>';
+    });
+
+    html += '</body></html>';
+
+    // Open in new tab — Safari shows share sheet from there
+    const blob = new Blob([html], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+
+  } catch(e){
+    alert('Export failed: ' + e.message);
+  }
+
+  btn.textContent = origText;
+  btn.style.pointerEvents = '';
+}
+
+async function renderSummaryToPng(w, h){
+  try {
+    const fitted = locations.filter(l=>l.visible!==false&&powerLawFit(l.data));
+    const scored = fitted.map(loc=>{
+      const fit=powerLawFit(loc.data);
+      return {loc,fit};
+    });
+    if(!scored.length) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width=w; canvas.height=h;
+    const ctx = canvas.getContext('2d');
+    const maxG=30;
+    const ml=55,mr=15,mt=20,mb=35,cw=w-ml-mr,ch=h-mt-mb;
+
+    let maxM=0;
+    scored.forEach(s=>{ const v=s.fit.a*Math.pow(maxG,s.fit.b); if(v>maxM)maxM=v; });
+    const axM=niceAxis(maxM,4);
+    const pyM=m=>mt+ch-(m/axM.max*ch);
+    const px=g=>ml+(maxG-g)/maxG*cw;
+
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+    axM.ticks.forEach(m=>{ const y=pyM(m); ctx.beginPath();ctx.moveTo(ml,y);ctx.lineTo(ml+cw,y);ctx.stroke(); });
+    for(let g=0;g<=maxG;g+=10){ ctx.beginPath();ctx.moveTo(px(g),mt);ctx.lineTo(px(g),mt+ch);ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.strokeStyle='#ccc'; ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(ml,mt);ctx.lineTo(ml,mt+ch);ctx.lineTo(ml+cw,mt+ch);ctx.stroke();
+
+    const decM=axM.step<0.0001?5:axM.step<0.001?4:axM.step<0.01?3:axM.step<0.1?2:1;
+    const COLS=['#00d4aa','#ff6b35','#4fc3f7','#f7c948','#c084fc','#f472b6'];
+    ctx.fillStyle='#999'; ctx.font='9px Arial';
+    ctx.textAlign='right';
+    axM.ticks.forEach(m=>{ const y=pyM(m); ctx.fillText(m.toFixed(decM),ml-3,y+3); });
+    ctx.textAlign='center';
+    for(let g=0;g<=maxG;g+=10) ctx.fillText(g===0?'0':'-'+g,px(g),mt+ch+14);
+    ctx.save();ctx.translate(13,mt+ch/2);ctx.rotate(-Math.PI/2);
+    ctx.textAlign='center';ctx.fillStyle='#999';ctx.font='10px Arial';
+    ctx.fillText('ṁ (kg/s/m)',0,0);ctx.restore();
+    ctx.textAlign='center';ctx.fillStyle='#999';ctx.font='10px Arial';
+    ctx.fillText('P₁ gauge (kPa)',ml+cw/2,h-4);
+
+    scored.forEach((s,si)=>{
+      const li=locations.indexOf(s.loc);
+      const col=COLS[li%COLS.length];
+      const isBW=si===0||si===scored.length-1;
+      ctx.strokeStyle=col; ctx.lineWidth=isBW?2.5:1;
+      ctx.globalAlpha=isBW?1:0.3;
+      if(!isBW) ctx.setLineDash([4,3]);
+      ctx.beginPath(); let first=true;
+      for(let g=0;g<=maxG;g+=maxG/200){
+        const mm=g===0?0:s.fit.a*Math.pow(g,s.fit.b);
+        if(!isFinite(mm)||mm<0)continue;
+        const x=px(g),y=pyM(mm);
+        if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
+      }
+      ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha=1;
+      if(isBW){
+        const lg=maxG*0.85, lm=s.fit.a*Math.pow(lg,s.fit.b);
+        ctx.fillStyle=col; ctx.font='bold 9px Arial'; ctx.textAlign='center';
+        ctx.fillText(si===0?'BEST':'WORST',px(lg),pyM(lm)-6);
+      }
+    });
+
+    return canvas.toDataURL('image/png');
+  } catch(e){ return null; }
 }
 
 /* ═══════════════════════════════════
